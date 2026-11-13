@@ -53,7 +53,7 @@ export const handler = router({
   'GET /api/visits': [
     requireAuth(),
     async () => {
-      const result = await db.list<Visit>(tableFor(), { limit: 200 });
+      const result = await db.list<Visit>(tableFor(), { limit: 1000 });
       const items = await Promise.all(result.items.map(async visit => {
         const photos = [visit.visitPhoto, visit.orderPhoto].filter(Boolean) as Array<{ path: string; contentType: string }>;
         const urls = photos.length ? await storage.url(photos.map(photo => photo.path)) : [];
@@ -71,10 +71,14 @@ export const handler = router({
     requireAuth(),
     async ({ user, body }) => {
       const payload = body as Visit & { photos?: { visit?: string; order?: string } };
-      const visit = payload;
+      const { photos: _photos, ...visit } = payload;
       if (!visit || !valid(visit))
         return error('Confira os campos do registro.', 400);
-      if (!visit.checkInAt || !visit.latitude || !visit.longitude)
+      if (
+        !visit.checkInAt ||
+        visit.latitude === undefined ||
+        visit.longitude === undefined
+      )
         return error('Faça o check-in com GPS antes de salvar.', 400);
       const prefix = 'visits/' + visit.id;
       const photoEntries: Array<{ path: string; content: string; contentType: string }> = [];
@@ -84,6 +88,7 @@ export const handler = router({
       if (uploaded.some(ok => !ok)) return error('Não foi possível salvar as fotos. Tente novamente.', 500);
       const savedVisit: Visit = {
         ...visit,
+        revenue: visit.order ? visit.revenue : 0,
         ...(payload.photos?.visit ? { visitPhoto: { path: prefix + '/visita.jpg', contentType: 'image/jpeg' } } : {}),
         ...(payload.photos?.order ? { orderPhoto: { path: prefix + '/pedido.jpg', contentType: 'image/jpeg' } } : {}),
         registeredBy: user?.email || user?.name || user!.userId,
@@ -104,6 +109,12 @@ export const handler = router({
     async ({ user, params }) => {
       if (!/^[A-Za-z0-9_-]{1,80}$/.test(params.id))
         return error('Registro inválido.', 400);
+      const { items } = await db.list<Visit>(tableFor(), { limit: 1000 });
+      const existing = items.find(v => v.id === params.id);
+      if (!existing) return error('Registro não encontrado.', 404);
+      const me = user?.email || user?.name || user!.userId;
+      if (existing.registeredBy && existing.registeredBy !== me)
+        return error('Apenas quem registrou a visita pode excluí-la.', 403);
       const [deleted] = await db.delete(tableFor(), [params.id]);
       if (!deleted) return error('Registro não encontrado.', 404);
       await storage.delete(['visits/' + params.id + '/visita.jpg', 'visits/' + params.id + '/pedido.jpg']);
