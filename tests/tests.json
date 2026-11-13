@@ -1,0 +1,36 @@
+[
+  {
+    "name": "Abrir simulação comercial",
+    "viewport": "desktop",
+    "covers": [
+      "aba Simulação",
+      "resultados demonstrativos por vendedor",
+      "visitas e vendas fictícias",
+      "separação entre simulação e histórico real"
+    ],
+    "description": "Verifica que a simulação apresenta indicadores e registros de exemplo sem gravá-los no histórico real.",
+    "steps": [
+      "Entrar no aplicativo",
+      "Abrir a aba Simulação",
+      "Conferir os indicadores por vendedor e exemplos de visitas",
+      "Abrir Histórico"
+    ],
+    "expected": "A aba de simulação mostra resultados marcados como fictícios e o histórico real não recebe os exemplos da demonstração."
+  },
+  {
+    "name": "Ver resultados simulados no celular",
+    "sanity": true,
+    "viewport": "mobile",
+    "covers": [
+      "layout móvel da simulação",
+      "conversão e vendas simuladas"
+    ],
+    "description": "Confere que o painel demonstrativo permite visualizar os resultados por vendedor em uma tela móvel.",
+    "steps": [
+      "Entrar no aplicativo pelo celular",
+      "Abrir Simulação",
+      "Consultar vendas, pedidos e conversão da equipe"
+    ],
+    "expected": "Os indicadores e cartões dos vendedores aparecem legíveis em tela móvel e seguem identificados como demonstração."
+  }
+]
