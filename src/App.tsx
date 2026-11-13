@@ -213,10 +213,9 @@ function App() {
     () => items.filter(v => v.date.slice(0, 7) === month),
     [items, month]
   );
-  const revenueTotal = monthItems.reduce(
-      (a, v) => a + Number(v.revenue || 0),
-      0
-    ),
+  const revenueTotal = monthItems
+      .filter(v => v.order)
+      .reduce((a, v) => a + Number(v.revenue || 0), 0),
     gpsTotal = monthItems.filter(v => v.latitude !== undefined).length;
   const sellerResults = sellers
     .map(name => {
@@ -241,7 +240,7 @@ function App() {
     setMessage('');
     if (!navigator.geolocation) {
       setMessage(
-        'Este aparelho não oferece localização. Você ainda pode salvar sem GPS.'
+        'Este aparelho não oferece localização. O check-in com GPS é obrigatório para salvar a visita.'
       );
       return;
     }
@@ -257,7 +256,7 @@ function App() {
       e =>
         setMessage(
           e.code === 1
-            ? 'A permissão foi negada. Libere o GPS no navegador ou salve sem localização.'
+            ? 'A permissão foi negada. Libere o GPS no navegador para fazer o check-in.'
             : 'Não foi possível obter o GPS agora. Tente novamente.'
         ),
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
@@ -281,6 +280,10 @@ function App() {
       setMessage('Como houve pedido, anexe também a foto do pedido.');
       return;
     }
+    if (order && !(Number(revenue) > 0)) {
+      setMessage('Informe o valor do pedido.');
+      return;
+    }
     setSaving(true);
     setMessage('');
     try {
@@ -293,7 +296,7 @@ function App() {
         placeVisited: place.trim(),
         status,
         order,
-        revenue: Number(revenue || 0),
+        revenue: order ? Number(revenue || 0) : 0,
         notes: notes.trim(),
         ...gps,
         checkInAt: gps.locationAt,
@@ -324,7 +327,7 @@ function App() {
       await api.delete('/api/visits/' + encodeURIComponent(id));
       setItems(items.filter(v => v.id !== id));
     } catch {
-      setMessage('Não foi possível excluir o registro.');
+      setMessage('Não foi possível excluir o registro. Apenas quem registrou a visita pode excluí-la.');
     }
   }
   if (!ready) return <main className="center">Carregando…</main>;
@@ -336,7 +339,7 @@ function App() {
           <p className="eyebrow">OURO ROXO AÇAÍ</p>
           <h1>Rotas e visitas</h1>
           <p>
-            Consulte as rotas planejadas e registre os atendimentos. A localização é opcional e só é capturada quando você solicitar.
+            Consulte as rotas planejadas e registre os atendimentos. A localização é registrada somente no check-in de cada visita.
           </p>
           <button
             className="primary wide"
@@ -411,6 +414,9 @@ function App() {
             )
           )}
         </nav>
+        {message && tab !== 'Registrar visita' && (
+          <p className="notice">{message}</p>
+        )}
         {tab === 'Resumo' && (
           <>
             <div className="metrics">
@@ -492,7 +498,7 @@ function App() {
               <p className="eyebrow">NOVO REGISTRO</p>
               <h2>Registrar visita</h2>
               <p>
-                Informe o cliente, o resultado do atendimento e, se quiser, registre o ponto do GPS.
+                Informe o cliente e faça o check-in com GPS no local. Depois registre o resultado, o pedido e as fotos.
               </p>
               <div className="fields">
                 <label>
@@ -543,7 +549,6 @@ function App() {
                 <label>
                       Resultado do atendimento
                   <select
-                    disabled={Boolean(gps)}
                     value={status}
                     onChange={e => setStatus(e.target.value)}
                   >
@@ -556,19 +561,18 @@ function App() {
                 <label>
                   Valor do pedido (R$)
                   <input
-                    disabled={Boolean(gps)}
+                    disabled={!order}
                     type="number"
                     min="0"
                     step="0.01"
                     value={revenue}
                     onChange={e => setRevenue(e.target.value)}
-                    placeholder="0,00"
+                    placeholder={order ? '0,00' : 'Marque "Gerou pedido"'}
                   />
                 </label>
                 <label className="full">
                   Observações
                   <textarea
-                    disabled={Boolean(gps)}
                     rows={3}
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
@@ -579,7 +583,7 @@ function App() {
               <div className="evidence-fields">
                 <label className="photo-input">
                   Foto da visita <small>Obrigatória</small>
-                  <input disabled={Boolean(gps)} type="file" accept="image/*" capture="environment" onChange={async e => {
+                  <input type="file" accept="image/*" capture="environment" onChange={async e => {
                     const file = e.target.files?.[0];
                     if (!file) return;
                     if (file.size > 12 * 1024 * 1024) { setMessage('A foto deve ter até 12 MB.'); return; }
@@ -595,7 +599,7 @@ function App() {
                 </label>
                 <label className="photo-input">
                   Foto do pedido <small>{order ? 'Obrigatória quando houver pedido' : 'Opcional'}</small>
-                  <input disabled={Boolean(gps)} type="file" accept="image/*" capture="environment" onChange={async e => {
+                  <input type="file" accept="image/*" capture="environment" onChange={async e => {
                     const file = e.target.files?.[0];
                     if (!file) return;
                     if (file.size > 12 * 1024 * 1024) { setMessage('A foto deve ter até 12 MB.'); return; }
@@ -652,10 +656,12 @@ function App() {
               <div className="actions">
                 <label>
                   <input
-                    disabled={Boolean(gps)}
                     type="checkbox"
                     checked={order}
-                    onChange={e => setOrder(e.target.checked)}
+                    onChange={e => {
+                      setOrder(e.target.checked);
+                      if (!e.target.checked) setRevenue('');
+                    }}
                   />{' '}
                   Gerou pedido
                 </label>
